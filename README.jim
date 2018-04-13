@@ -1,0 +1,19 @@
+Setup:
+
+    sudo apt install python-flask python-flask-compress
+    sudo pip install readability-lxml
+
+Create hnrss.cgi in the webroot, e.g.:
+
+    #!/usr/bin/python
+
+    import sys
+    sys.path.insert(0, '/home/jim/git/hnrss')
+    from wsgiref.handlers import CGIHandler
+    from hnrss import app
+    CGIHandler().run(app)
+
+Create .htaccess in the webroot, e.g.:
+
+    AddHandler cgi-script .cgi
+    Options +ExecCGI
