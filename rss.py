@@ -4,6 +4,8 @@ import hashlib
 from xml.sax.saxutils import unescape as sax_unescape
 from flask import request
 from lxml import etree
+import requests
+import readability
 
 try:
     unichr(0)
@@ -19,6 +21,33 @@ def unescape(s):
     s = re.sub('&#[Xx]([A-Fa-f0-9]+);', deref_ncr, s)
     entities = {'&quot;': '"', '&apos;': "'"}
     return sax_unescape(s, entities)
+
+def fetch_article(url, hn_title=None):
+    # load page and process with readability
+    try:
+        start = time.time()
+        headers = { 'User-Agent': 'Mozilla/5.0' }
+        response = requests.get(url, timeout=15, headers=headers)
+        article = ''
+        if response.status_code != 200:
+            article += ('<div>HTTP error fetching article: %d</div>' %
+                        response.status_code)
+        doc = readability.Document(response.text)
+        title = doc.short_title()
+        body = doc.summary(html_partial=True)
+        if title != hn_title:
+            article += '<div><b>Original title:</b> %s</div>' % title
+        article += '<hr><div>%s</div><hr>' % body
+        elapsed = time.time() - start
+        now = time.strftime('%c %Z')
+        article += (
+            '<p><small><em>'
+            'Fetched in %(elapsed).3fs at %(now)s'
+            '</em></small></p>'
+            ) % locals()
+        return article
+    except requests.exceptions.RequestException as e:
+        return 'Failed to fetch article: %s' % e
 
 def insert_donation_request(guid):
     h = hashlib.sha1(guid).hexdigest()
@@ -62,46 +91,38 @@ class RSS(object):
         for hit in self.api_response['hits']:
             rss_item = etree.SubElement(self.rss_channel, 'item')
             hn_url = 'https://news.ycombinator.com/item?id=%s' % hit['objectID']
+            url = hit.get('url') or hn_url
             tags = hit.get('_tags', [])
 
-            if 'comment' in tags:
-                if hit.get('story_title') and hit.get('comment_text'):
-                    self.add_element(rss_item, 'title', 'New comment by %s in "%s"' % (
-                        hit.get('author'), hit.get('story_title')))
-                    self.add_element(rss_item, 'description', unescape(hit.get('comment_text')))
+            title = hit.get('title')
+            author = hit.get('author')
+            comments = hit.get('num_comments') or 0
+            points = hit.get('points') or 0
+            story_text = hit.get('story_text')
+            if story_text:
+                article = '<hr>%s</hr>' % story_text
             else:
-                if hit.get('title'):
-                    self.add_element(rss_item, 'title', hit.get('title'))
-                if hit.get('story_text'):
-                    self.add_element(rss_item, 'description', unescape(hit.get('story_text')))
-                elif self.api_response['description']:
-                    template = (
-                        '<p>Article URL: <a href="%(url)s">%(url)s</a></p>'
-                        '<p>Comments URL: <a href="%(hn_url)s">%(hn_url)s</a></p>'
-                        '<p>Points: %(points)s</p>'
-                        '<p># Comments: %(comments)s</p>'
-                    ) + insert_donation_request(hn_url)
-                    params = {
-                        'url': hit.get('url') or hn_url,
-                        'hn_url': hn_url,
-                        'points': hit.get('points', 0) or 0,
-                        'comments': hit.get('num_comments', 0) or 0,
-                    }
-                    self.add_element(rss_item, 'description', template % params)
+                article = fetch_article(url)
 
-            self.add_element(rss_item, 'pubDate', self.generate_rfc2822(hit.get('created_at_i')))
+            body = (
+                '<div><b>HN:</b> '
+                'by %(author)s, '
+                '%(points)d points, '
+                '<a href="%(hn_url)s">%(comments)d comments</a>'
+                '</div>'
+                '%(article)s'
+                ) % locals()
 
-            if self.api_response['link_to'] == 'comments':
-                self.add_element(rss_item, 'link', hn_url)
-            else:
-                self.add_element(rss_item, 'link', hit.get('url') or hn_url)
 
-            self.add_element(rss_item, '{http://purl.org/dc/elements/1.1/}creator', hit.get('author'))
-
-            if ('story' in tags or 'poll' in tags):
-                self.add_element(rss_item, 'comments', hn_url)
-
-            self.add_element(rss_item, 'guid', hn_url, isPermaLink='false')
+            def rss_add(*args, **kwargs):
+                self.add_element(rss_item, *args, **kwargs)
+            rss_add('title', title)
+            rss_add('description', body)
+            rss_add('link', url)
+            rss_add('{http://purl.org/dc/elements/1.1/}creator', author)
+            rss_add('pubDate', self.generate_rfc2822(hit.get('created_at_i')))
+            rss_add('comments', hn_url)
+            rss_add('guid', hn_url, isPermaLink='false')
 
     def response(self):
         rss_xml = etree.tostring(
