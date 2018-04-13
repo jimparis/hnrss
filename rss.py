@@ -103,12 +103,18 @@ class RSS(object):
             else:
                 article = fetch_article(url)
 
+            pointstr = "%d point" % points
+            if points != 1:
+                pointstr += "s"
+            commentstr = "%d comment" % comments
+            if comments != 1:
+                commentstr += "s"
+
             body = (
-                '<div><b>HN:</b> '
-                'by %(author)s, '
-                '%(points)d points, '
-                '<a href="%(hn_url)s">%(comments)d comments</a> '
-                '</div>'
+                '<div>(<b>HN:</b> '
+                '%(pointstr)s, '
+                '<a href="%(hn_url)s">%(commentstr)s</a>'
+                ')</div> '
                 '%(article)s'
                 ) % locals()
 
