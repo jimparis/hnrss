@@ -22,7 +22,7 @@ def unescape(s):
     entities = {'&quot;': '"', '&apos;': "'"}
     return sax_unescape(s, entities)
 
-def fetch_article(url, hn_title=None):
+def fetch_article(url):
     # load page and process with readability
     try:
         start = time.time()
@@ -30,19 +30,18 @@ def fetch_article(url, hn_title=None):
         response = requests.get(url, timeout=15, headers=headers)
         article = ''
         if response.status_code != 200:
-            article += ('<div>HTTP error fetching article: %d</div>' %
+            article += ('<div>HTTP error fetching article: %d</div>\n' %
                         response.status_code)
         doc = readability.Document(response.text)
         title = doc.short_title()
         body = doc.summary(html_partial=True)
-        if title != hn_title:
-            article += '<div><b>Original title:</b> %s</div>' % title
-        article += '<hr><div>%s</div><hr>' % body
+        article += '<hr><div>%s</div><hr>\n' % body
         elapsed = time.time() - start
         now = time.strftime('%c %Z')
         article += (
             '<p><small><em>'
-            'Fetched in %(elapsed).3fs at %(now)s'
+            'Fetched in %(elapsed).3fs at %(now)s<br>\n'
+            'Original title: %(title)s\n'
             '</em></small></p>'
             ) % locals()
         return article
@@ -108,7 +107,7 @@ class RSS(object):
                 '<div><b>HN:</b> '
                 'by %(author)s, '
                 '%(points)d points, '
-                '<a href="%(hn_url)s">%(comments)d comments</a>'
+                '<a href="%(hn_url)s">%(comments)d comments</a> '
                 '</div>'
                 '%(article)s'
                 ) % locals()
