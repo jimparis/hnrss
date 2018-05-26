@@ -33,6 +33,9 @@ def fetch_article(url):
             article += ('<div>HTTP error fetching article: %d</div>\n' %
                         response.status_code)
         content_type = response.headers.get("content-type", "unknown/unknown")
+        if 'charset=' not in content_type:
+            # If encoding wasn't specified by server, guess it.
+            response.encoding = response.apparent_encoding
         if content_type.startswith("text/"):
             doc = readability.Document(response.text)
             title = doc.short_title()
