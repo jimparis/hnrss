@@ -32,10 +32,15 @@ def fetch_article(url):
         if response.status_code != 200:
             article += ('<div>HTTP error fetching article: %d</div>\n' %
                         response.status_code)
-        doc = readability.Document(response.text)
-        title = doc.short_title()
-        body = doc.summary(html_partial=True)
-        article += '<hr><div>%s</div><hr>\n' % body
+        content_type = response.headers.get("content-type", "unknown/unknown")
+        if content_type.startswith("text/"):
+            doc = readability.Document(response.text)
+            title = doc.short_title()
+            body = doc.summary(html_partial=True)
+            article += '<hr><div>%s</div><hr>\n' % body
+        else:
+            article += ('<div>Non-text content-type: %s</div>\n' %
+                        content_type)
         elapsed = time.time() - start
         now = time.strftime('%c %Z')
         article += (
