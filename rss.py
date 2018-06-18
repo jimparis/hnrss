@@ -6,6 +6,8 @@ from flask import request
 from lxml import etree
 import requests
 import readability
+import cchardet
+from collections import defaultdict
 
 try:
     unichr(0)
@@ -33,17 +35,17 @@ def fetch_article(url):
             article += ('<div>HTTP error fetching article: %d</div>\n' %
                         response.status_code)
         content_type = response.headers.get("content-type", "unknown/unknown")
-        if 'charset=' not in content_type:
-            # If encoding wasn't specified by server, guess it.
-            response.encoding = response.apparent_encoding
         if content_type.startswith("text/"):
+            if 'charset=' not in content_type:
+                # If encoding wasn't specified by server, guess it.
+                response.encoding = cchardet.detect(response.content)['encoding']
             doc = readability.Document(response.text)
             title = doc.short_title()
             body = doc.summary(html_partial=True)
             article += '<hr><div>%s</div><hr>\n' % body
         else:
-            article += ('<div>Non-text content-type: %s</div>\n' %
-                        content_type)
+            article += ('<div>Non-text content-type: %s, %d bytes</div>\n' %
+                        (content_type, len(response.content)))
         elapsed = time.time() - start
         now = time.strftime('%c %Z')
         article += (
@@ -51,7 +53,7 @@ def fetch_article(url):
             'Fetched in %(elapsed).3fs at %(now)s<br>\n'
             'Original title: %(title)s\n'
             '</em></small></p>'
-            ) % locals()
+            ) % defaultdict(lambda: '(none)', locals())
         return article
     except requests.exceptions.RequestException as e:
         return 'Failed to fetch article: %s' % e

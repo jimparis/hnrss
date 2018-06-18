@@ -1,7 +1,7 @@
 Setup:
 
     sudo apt install python-flask python-flask-compress
-    sudo pip install readability-lxml
+    sudo pip install readability-lxml cchardet
 
 Create hnrss.cgi in the webroot, e.g.:
 
@@ -17,3 +17,4 @@ Create .htaccess in the webroot, e.g.:
 
     AddHandler cgi-script .cgi
     Options +ExecCGI
+
